@@ -659,12 +659,14 @@ def parseLogDir(destDir:str, resonFile:TextIOWrapper, packageName:str=DEFAULT_PA
     #输出pid和线程名称到文件
     if len(globalValues.pidMap)>0:
         temp ="线程名称:\n\t"
-        temp = ''
+        resonFile.writelines(temp)
+        globalValues.showMessage.append(temp)
         count = 0
+        temp = ''
         for key in sorted(globalValues.pidMap.keys()):
             temp = temp + 'pid={} : name={},\t\t'.format(key, globalValues.pidMap[key])
             count = count+1
-            if len(temp)>125:
+            if len(temp)>80:
                 temp = temp+'\n\t'
                 globalValues.showMessage.append(temp)
                 resonFile.writelines(temp)
