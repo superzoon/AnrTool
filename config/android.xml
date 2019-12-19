@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+监听文件
+<apk
+    fileName="SystemUI.apk"                                 文件名称 ,必填
+    progress="com.android.systemui"                         进程名称(一般为包名) ,默认空
+    path="/system/product/priv-app/SystemUI/SystemUI.apk"   文字在手机存在的路径 ,必填
+    action="kill"                                           执行动作 1.kill:杀死进程 2.reboot:重启手机 3.force-stop:停止包名所对应的进程 ,默认空
+    start=".tuner.TunerActivity"                            启动activity activityName(“.”开头表示包名对应的Activity) ,默认空
+    clean="no|yes"                                          清除包名对应的data ,默认false
+    delay="no|yes"                                          当多个文件发生变化时候是否延时等待其它任务处理完成后执行action, 默认fase
+    delayTime="5"                                           如果延时等待最少等待时间s
+    />
+-->
+<android>
+    <file
+        fileName="SystemUI.apk"
+        progress="com.android.systemui"
+        packageName="com.android.systemui"
+        path="/system/product/priv-app/SystemUI/SystemUI.apk"
+        action="kill"
+        />
+    <file
+        fileName="services.jar"
+        path="/system/framework/services.jar"
+        action="reboot"
+        delay="yes"
+        delayTime="3"
+        />
+    <file
+        fileName="framework.jar"
+        path="/system/framework/framework.jar"
+        action="reboot"
+        delay="yes"
+        delayTime="3"
+        />
+    <file
+        fileName="framework.apk"
+        path="/system/framework/framework.apk"
+        action="reboot"
+        delay="yes"
+        delayTime="3"
+        />
+</android>

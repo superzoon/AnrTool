@@ -138,3 +138,9 @@ def parseProp(propFiles):
                     if match and match.group(1) in keys:
                         allProp[match.group(1)] = match.group(2)
     return allProp
+
+import socket
+import getpass
+
+user_name = getpass.getuser() # 获取当前用户名
+hostname = socket.gethostname() # 获取当前主机名

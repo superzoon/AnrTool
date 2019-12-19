@@ -25,8 +25,8 @@ current_dir = dirname(abspath(__file__))
 EXE_PATH = '//MININT-578MFLI/Share/AnrTool/'
 VERSION_INI_FILE = EXE_PATH+'version.ini'
 
-CURRENT_VERSION = '1.0.006'
-CURRENT_UPDATE_CONTENT = '修复bug,更正log记录'
+CURRENT_VERSION = '1.0.007'
+CURRENT_UPDATE_CONTENT = '多线程操作修复'
 
 def updateExe():
     update = False

@@ -91,3 +91,5 @@ class GressBar():
             logUtils.debug('任务结束 --- 使用时间({})'.format(toolUtils.getUsedTimeStr(self.start, self.end)))
             self.master.destroy()
             self.master = None
+
+

@@ -60,7 +60,7 @@ class LooperThread(WorkThread):
         self.actions = []
         self.isRun = False
         self.looper = True
-        self.queue = Queue(999)
+        self.queue:Queue = Queue(999)
         self.working = False
 
     def quit(self, wait = False):
@@ -108,10 +108,12 @@ def __doAction__(action):
         logUtils.info(msg)
         if not __allWork__.empty():
             for work in __WORK_THREADS__:
-                if work.queue.empty():
+                if work.queue.qsize() == 0 and not work.working:
+                    msg = 'post working name : {}'.format(work)
+                    logUtils.info(msg)
                     work.post(__allWork__.get())
                     return
-        else:
+        if __allWork__.empty():
             LockUtil.acquireLock(__WORK_THREAD_LOCK__)
             workCount = 0
             for t in __WORK_THREADS__:
@@ -127,9 +129,21 @@ def __doAction__(action):
 def addWorkDoneCallback(callback):
     __Work_Done__.put(callback)
 
-def postAction(action):
-    __allWork__.put(__doAction__(action))
+def getWorkingCount():
+    workCount = 0
     for work in __WORK_THREADS__:
-        if work.queue.empty():
-            work.post(__allWork__.get())
-            return
+        if work.working:
+            workCount = workCount+1
+    return workCount
+
+def postAction(action=None):
+    if action:
+        __allWork__.put(__doAction__(action))
+        for work in __WORK_THREADS__:
+            if work.queue.qsize()==0 and not work.working:
+                print("work={}, iswork={}".format(work, work.working))
+                work.post(__allWork__.get())
+                return
+    else:
+        for work in __WORK_THREADS__:
+            print("work={}, iswork={}".format(work, work.working))

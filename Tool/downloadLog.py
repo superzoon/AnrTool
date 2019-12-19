@@ -9,7 +9,7 @@ import sys, io, json, zipfile, time, os
 from os import (startfile, walk, path, listdir, popen, remove, rename, makedirs, chdir)
 from os.path import (realpath, isdir, isfile, sep, dirname, abspath, exists, basename, getsize)
 from shutil import (copytree, rmtree, copyfile, move)
-from Tool import GLOBAL_VALUES
+from Tool import GLOBAL_VALUES, logUtils, workThread
 __HOST__URL__ = 'http://log-list.server.nubia.cn'
 __CHECK__URL__ = __HOST__URL__+'/login/check.do'
 __LIST__URL__ = __HOST__URL__+'/log/list.do?'
@@ -50,25 +50,32 @@ def getOpener():
 
 class __JiraLog__():
 
+    def getValueFrRow(self, name):
+        if name in self.row:
+            return self.row[name]
+        else:
+            return ''
+
     def __init__(self, row:dict):
         '''
         :param row: msg dict
         '''
-        self.logType = row['logType']
-        self.severity = row['severity']
-        self.productModel = row['productModel']
-        self.featureCode = row['featureCode']
-        self.logId = row['hbaseRowid']
-        self.softwareVersion = row['specialVersion']
-        self.logSubType = row['logSubType']
-        self.packageName = row['keyInfo']
-        self.platform = row['platform']
-        self.productVersion = row['productVersion']
-        self.reportDate = row['reportDate']
-        self.androidVersion = row['androidVersion']
-        self.jiraId = row['jiraId']
-        self.imei = row['imei']
-        self.rooted = row['rooted']
+        self.row = row
+        self.logType = self.getValueFrRow('logType')
+        self.severity = self.getValueFrRow('severity')
+        self.productModel = self.getValueFrRow('productModel')
+        self.featureCode = self.getValueFrRow('featureCode')
+        self.logId = self.getValueFrRow('hbaseRowid')
+        self.softwareVersion = self.getValueFrRow('specialVersion')
+        self.logSubType = self.getValueFrRow('logSubType')
+        self.packageName = self.getValueFrRow('keyInfo')
+        self.platform = self.getValueFrRow('platform')
+        self.productVersion = self.getValueFrRow('productVersion')
+        self.reportDate = self.getValueFrRow('reportDate')
+        self.androidVersion = self.getValueFrRow('androidVersion')
+        self.jiraId = self.getValueFrRow('jiraId')
+        self.imei = self.getValueFrRow('imei')
+        self.rooted = self.getValueFrRow('rooted')
         row['url'] = self.getUrl()
         self.title = '\t'.join(row.keys())
         self.msg = '\t'.join(row.values())
@@ -99,6 +106,7 @@ class __JiraLog__():
     def download(self, path):
         __createDir__(path)
         fileName = sep.join([path, self.logId+'.zip'])
+        logUtils.info('下载:{}'.format(fileName.replace('\\','/')))
         if zipfile.is_zipfile(fileName):
             return False
         req:HTTPResponse = urllib.request.Request(self.getUrl(), headers = headers)
@@ -115,7 +123,6 @@ class __JiraLog__():
                 LockUtil.acquire()
                 z = zipfile.ZipFile(temp, 'a')
                 readme = self.logId+'.txt'
-                print(abspath(readme))
                 with open(readme, "w") as code:
                     code.write(self.__str__(showTitle=True))
                     code.flush()
@@ -168,7 +175,7 @@ def inList(log: __JiraLog__, list: __JiraLog__):
             return True
     return False
 
-def getAllJiraLog(jiraId:str, productModel:str, callbackMsg=None, order:str='asc',limit:int=30, productVersion=None, tfsId=None, hasFile='Y'):
+def getAllJiraLog(jiraId:str=None, productModel:str=None, callbackMsg=None, order:str='asc',limit:int=30, productVersion=None, tfsId=None, hasFile='Y'):
     '''
     :param jiraId:
     :param productModel: 机器型号
@@ -179,6 +186,10 @@ def getAllJiraLog(jiraId:str, productModel:str, callbackMsg=None, order:str='asc
     :param hasFile:服务器是否有保存文件
     :return:所有可下载的log信息
     '''
+    logUtils.info('getAllJiraLog  jiraId={}, productModel={}, order={}, limit={}, productVersions={}, tfsId={}, hasFile={}'.format(
+        jiraId, productModel, order, limit, productVersion, tfsId, hasFile
+    ))
+
     'order=asc&limit=30&offset=0&productModel=NX629J&jiraId=LOG-67680&productVersion=NX629J_Z0_CN_VLF0P_V234&hasFile=Y&rooted=y'
     if callbackMsg:
         callbackMsg('获取jira信息。。。')
@@ -189,11 +200,13 @@ def getAllJiraLog(jiraId:str, productModel:str, callbackMsg=None, order:str='asc
     filters.append('order={}'.format(order))
     filters.append('limit={}'.format(limit))
     filters.append('offset={}')
-    filters.append('productModel={}'.format(productModel))
-    if tfsId:
+    if productModel and len(productModel)>0:
+        filters.append('productModel={}'.format(productModel))
+    if tfsId and len(tfsId)>0:
         filters.append('tfsId={}'.format(tfsId))
-    filters.append('jiraId={}'.format(jiraId))
-    if productVersion:
+    if jiraId and len(jiraId)>0:
+        filters.append('jiraId={}'.format(jiraId))
+    if productVersion and len(productVersion)>0:
         filters.append('productVersion={}'.format(productVersion))
     filters.append('hasFile={}'.format(hasFile))
     '''
@@ -216,6 +229,9 @@ def getAllJiraLog(jiraId:str, productModel:str, callbackMsg=None, order:str='asc
     return allLog
 
 def download(outPath:str, callbackMsg, jiraId:str, productModels:str, parse = False, async = False, order:str='asc',limit:int=30, productVersions=[], tfsId=None, hasFile='Y'):
+    logUtils.info('download outPath={}, jiraId={}, productModels={}, parse={}, async={}, order={}, limit={}, productVersions={}, tfsId={}, hasFile={}'.format(
+        outPath, jiraId, productModels, parse, async, order, limit, productVersions, tfsId, hasFile
+    ))
     downLoadErrs.clear()
     '''
     最终下载路径outPath/jiraId/productModel/productVersion/logId.zip
@@ -226,17 +242,34 @@ def download(outPath:str, callbackMsg, jiraId:str, productModels:str, parse = Fa
     if not isdir(outPath):
         __createDir__(outPath)
     logs:__JiraLog__= []
+    GLOBAL_VALUES.packageNameDown = (jiraId==None or len(jiraId)==0)
+    if not productModels or len(productModels)==0:
+        productModels = ['']
+    if not productVersions or len(productVersions)==0:
+        productVersions = ['']
     for productModel in productModels:
-        for log in getAllJiraLog(jiraId, productModel, callbackMsg, order, limit, productVersion = None, tfsId = tfsId, hasFile= hasFile):
-            logs.append(log)
+        for productVersion in productVersions:
+            for log in getAllJiraLog(jiraId, productModel, callbackMsg, order, limit, productVersion, tfsId = tfsId, hasFile= hasFile):
+                logs.append(log)
     if callbackMsg:
         callbackMsg('开始下载。。。')
     logDict = dict()#{productModel:{productVersion:[logId]}}
-    parserPath = None
+    if GLOBAL_VALUES.packageNameDown:
+        parserPaths = []
+        parserLog = dict()
+    else:
+        parserPath = None
     packageName = None
+    isAnr = True
     for log in logs:
-        if not parserPath or len(parserPath) == 0:
+        if GLOBAL_VALUES.packageNameDown:
+            parserPath = sep.join([outPath, log.packageName, log.jiraId])
+            if not parserPath in  parserPaths:
+                parserPaths.append(parserPath)
+                parserLog[parserPath] = log
+        elif not parserPath or len(parserPath) == 0:
             parserPath = sep.join([outPath, log.jiraId])
+            isAnr = log.isAnr()
         if not packageName or len(packageName) == 0:
             packageName = log.packageName
         model = log.productModel
@@ -249,12 +282,16 @@ def download(outPath:str, callbackMsg, jiraId:str, productModels:str, parse = Fa
         logList = modelDict[version]
         if not inList(log, logList):
             logList.append(log)
+    GLOBAL_VALUES.downOkCount = 0
+    GLOBAL_VALUES.downNumber = 0
     if async:
         queue = Queue(1)
-        addWorkDoneCallback(lambda :queue.put('下载完成') )
     for model, versions in logDict.items():
         for version in sorted(versions.keys(), reverse=True):
-            def getAction(__model__, __version__):
+            def getDownAction(__model__, __version__):
+                workThread.LockUtil.acquire()
+                GLOBAL_VALUES.downNumber = GLOBAL_VALUES.downNumber + 1
+                workThread.LockUtil.release()
                 def downloadAction():
                     logs = logDict[__model__][__version__]
                     path = None
@@ -265,23 +302,66 @@ def download(outPath:str, callbackMsg, jiraId:str, productModels:str, parse = Fa
                         elif log.productVersion in productVersions:
                             willDown = True
                         if willDown:
-                            path = sep.join([outPath, log.jiraId, __version__])
+                            if GLOBAL_VALUES.packageNameDown:
+                                path = sep.join([outPath, log.packageName, log.jiraId, __version__])
+                            else:
+                                path = sep.join([outPath, log.jiraId, __version__])
                             if callbackMsg:
                                 callbackMsg('下载{}'.format(log.logId))
                                 log.download(path)
                     if path and isdir(path) and len(listdir(path))==0:
                         rmtree(path)
+
+                    workThread.LockUtil.acquire()
+                    GLOBAL_VALUES.downOkCount = GLOBAL_VALUES.downOkCount + 1
+                    workThread.LockUtil.release()
+                    print('downOkCount={},downNumber={}'.format(GLOBAL_VALUES.downOkCount,  GLOBAL_VALUES.downNumber))
+                    if async and GLOBAL_VALUES.downOkCount >= GLOBAL_VALUES.downNumber:
+                        queue.put('{}下载完成'.format(outPath.replace('\\','/')))
                 return downloadAction
-            action = getAction(model,version)
+            action = getDownAction(model,version)
             if async:
                 postAction(action)
             else:
                 action()
     if async:
         print(queue.get())
-        time.sleep(10)
-    if parse and parserPath and isdir(parserPath):
-        return parserZipLogDir(parserPath, packageName=packageName, removeDir=True, callbackMsg=callbackMsg)
+        time.sleep(1)
+
+    if parse:
+        if GLOBAL_VALUES.packageNameDown:
+            GLOBAL_VALUES.parserOkCount = 0
+            GLOBAL_VALUES.parserNumber = 0
+            def getParserAction(path, packageName):
+                workThread.LockUtil.acquire()
+                GLOBAL_VALUES.parserNumber = GLOBAL_VALUES.parserNumber + 1
+                workThread.LockUtil.release()
+                def action():
+                    if path and isdir(path):
+                        parserZipLogDir(path, packageName=packageName, removeDir=True, callbackMsg=callbackMsg)
+                    workThread.LockUtil.acquire()
+                    GLOBAL_VALUES.parserOkCount = GLOBAL_VALUES.parserOkCount+1
+                    workThread.LockUtil.release()
+                    print('parserOkCount={},workNumber={}'.format(GLOBAL_VALUES.parserOkCount, GLOBAL_VALUES.parserNumber))
+                    count = GLOBAL_VALUES.parserOkCount - GLOBAL_VALUES.parserNumber
+                    if async and count==0:
+                        queue.put('{} 解析完成'.format(outPath.replace('\\', '/')))
+                return action
+            for path in parserPaths:
+                log:__JiraLog__ = parserLog[path]
+                if log and log.isAnr():
+                    action = getParserAction(path, log.packageName)
+                    if async:
+                        postAction(action)
+                    else:
+                        action()
+            if async:
+                logUtils.info(queue.get())
+                time.sleep(1)
+        elif parserPath and isdir(parserPath) and isAnr:
+            parserZipLogDir(parserPath, packageName=packageName, removeDir=True, callbackMsg=callbackMsg)
+            logUtils.info('{}解析完成'.format(parserPath))
+        return True
     else:
         return True
 

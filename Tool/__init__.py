@@ -14,6 +14,7 @@ def log(msg):
 class GlobalValues:
     def __init__(self):
         self.pidMap = dict()
+        self.tidMap = dict()
         self.currentFile = ''
         self.showMessage = list()
         self.year = '2000'
@@ -69,7 +70,6 @@ class LogLine():
             self.initOther()
         else:
             self.isLogLine = False
-            print(line)
 
     def initOther(self):
         self.isFreezerd = False

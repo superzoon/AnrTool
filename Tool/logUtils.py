@@ -5,7 +5,7 @@ from os import remove
 from traceback import TracebackException, format_exc
 import sys
 
-LOG_FILE = "log.txt"
+LOG_FILE = "tool_log.txt"
 TAG = "xlan"
 
 try:

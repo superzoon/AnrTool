@@ -7,7 +7,7 @@ from zipfile import ZipFile
 from _io import TextIOWrapper
 from Tool import toolUtils
 from Tool.toolUtils import *
-from Tool.tracesLog import *
+from Tool.anrTraces import *
 from Tool import Anr,GlobalValues, log, logUtils
 from Tool.systemLog import *
 from Tool import DEF_MAX_DELAY_TIME
@@ -51,6 +51,11 @@ def parseIPCThreadState(allAnr :Anr, allLine:LogLine, line:LogLine):
                 allLine.append(line)
                 isParsed = True
                 break
+        if len(allAnr) == 0:
+            line.addDelay(delay)
+            allLine.append(line)
+            isParsed = True
+
     if not isParsed and re.match(pattern_ipc2, line.msg):
         addLine = True
         lastLine = allLine[-1] if len(allLine)>0 else None
@@ -64,6 +69,10 @@ def parseIPCThreadState(allAnr :Anr, allLine:LogLine, line:LogLine):
                     allLine.append(line)
                     isParsed = True
                     break
+            if len(allAnr) == 0:
+                line.addDelay(delay)
+                allLine.append(line)
+                isParsed = True
     if not isParsed:
         match = re.match(pattern_ipc3, line.msg)
         if match:
@@ -91,6 +100,11 @@ def parseLooper(allAnr :Anr, allLine:LogLine, line:LogLine):
                 allLine.append(line)
                 isParsed = True
                 break
+
+        if delay > DEF_MAX_DELAY_TIME and len(allAnr) == 0:
+            line.addDelay(delay)
+            allLine.append(line)
+            isParsed = True
     return isParsed
 
 # kgsl-3d0: |kgsl_get_unmapped_area| _get_svm_area: pid 29268 mmap_base f643b000 addr 0 pgoff 35de len 8716288 failed error -12
@@ -104,6 +118,9 @@ def parseKgsl(allAnr :Anr, allLine:LogLine, line:LogLine):
                 allLine.append(line)
                 isParsed = True
                 break
+        if len(allAnr) == 0:
+            allLine.append(line)
+            isParsed = True
     return isParsed
 
 # content_update_sample: [content://com.android.contacts/data,insert, , 23,  com.example.sendmessagetest,   5]
@@ -119,6 +136,10 @@ def parseQuery(allAnr :Anr, allLine:LogLine, line:LogLine):
                 allLine.append(line)
                 isParsed = True
                 break
+        if len(allAnr) == 0:
+            line.addDelay(delay)
+            allLine.append(line)
+            isParsed = True
     return isParsed
 
 # dvm_lock_sample: [com.android.settings, 1, (main) , (23),  ManageApplication.java, 1317,  ApplicationState.java, 323 , 5]
@@ -135,6 +156,10 @@ def parseLock(allAnr :Anr, allLine:LogLine, line:LogLine):
                 allLine.append(line)
                 isParsed = True
                 break
+        if len(allAnr) == 0:
+            line.addDelay(delay)
+            allLine.append(line)
+            isParsed = True
     return isParsed
 
 # am_activity_launch_time: [0, 185694486, cn.nubia.launcher/com.android.launcher3.Launcher,  257,  257]
@@ -150,6 +175,10 @@ def parseLauncher(allAnr :Anr, allLine:LogLine, line:LogLine):
                 allLine.append(line)
                 isParsed = True
                 break
+        if len(allAnr) == 0:
+            line.addDelay(delay)
+            allLine.append(line)
+            isParsed = True
     return isParsed
 
 # binder_sample: [ android.app.IActivityManager,  8,   227,    com.android.phone,    45]
@@ -165,6 +194,10 @@ def parseBinder(allAnr :Anr, allLine:LogLine, line:LogLine):
                 allLine.append(line)
                 isParsed = True
                 break
+        if len(allAnr) == 0:
+            line.addDelay(delay)
+            allLine.append(line)
+            isParsed = True
     return isParsed
 
 
@@ -189,6 +222,8 @@ def parseKeyguardViewMediator(allAnr :Anr, allLine:LogLine, line:LogLine):
             if line.isDoubtLine(anr):
                 allLine.append(line)
                 break
+        if len(allAnr) == 0:
+            allLine.append(line)
     return True
 
 
@@ -215,6 +250,9 @@ def parseAdreno(allAnr :Anr, allLine:LogLine, line:LogLine):
                 allLine.append(line)
                 isParsed = True
                 break
+        if len(allAnr) == 0:
+            allLine.append(line)
+            isParsed = True
     return isParsed
 
 # 09-22 04:59:35.929  1778  1841 W ActivityManager: Timeout executing service: ServiceRecord{9312bc1 u0 com.android.systemui/.light.LightEffectService}
@@ -366,14 +404,29 @@ def parseOpenGLRenderer(allAnr :Anr, allLine:LogLine, line:LogLine):
     return True
 
 pattern_nubialog = '^.*\ delay=([\d]+)ms\ .*'
+pattern_nubialog_dispatching = '^ .*dispatching message.*\ dispatching=-([\d]+s)?([\d]+ms)?\s.*'
 pattern_nubialog_draw = '.*draw takes ([\d|\.]+) ms:.*'
 def parseNubiaLog(allAnr :Anr, allLine:LogLine, line:LogLine):
-    match = re.match(pattern_nubialog, line.msg)
     isParsed = False
+    delay = 0
+    match = re.match(pattern_nubialog, line.msg)
     if not match:
         match = re.match(pattern_nubialog_draw, line.msg)
     if match:
         delay = float(match.group(1))
+
+    if delay == 0 :
+        match = re.match(pattern_nubialog_dispatching, line.msg)
+        if match:
+            for item in match.groups():
+                if item and len(item)>0:
+                    if item.endswith('ms'):
+                        delay = delay+int(item[:-2])
+                    elif item.endswith('s'):
+                        delay = delay+int(item[:-1])*1000
+        if delay > 5000:
+            line.line = '---->'+line.line[5:]
+    if delay > 0:
         line.addDelay(delay)
         if delay > DEF_MAX_DELAY_TIME:
             for anr in allAnr:
@@ -381,6 +434,10 @@ def parseNubiaLog(allAnr :Anr, allLine:LogLine, line:LogLine):
                     allLine.append(line)
                     isParsed = True
                     break
+        if len(allAnr) == 0:
+            line.addDelay(delay)
+            allLine.append(line)
+            isParsed = True
     return isParsed
 
 def parseLine(allAnr :Anr, allLine:LogLine, line:LogLine, packageName = DEFAULT_PACKAGE):
@@ -694,11 +751,12 @@ def parseLogDir(destDir:str, resonFile:TextIOWrapper, packageName:str=DEFAULT_PA
             if maxBinderNum == value or value > 3 or len(hungerBinder)==1:
                 pids = key.split(':')
                 fromPid = int(pids[0])
+                if fromPid in globalValues.pidMap:
+                    fromPid = '{}({})'.format(fromPid, globalValues.pidMap[fromPid])
                 toPid = int(pids[1])
-                temp = temp+'\n\t其中 binder form {} to {}, 数量 = {}。'.format(fromPid, toPid, value)
-
-                if fromPid in globalValues.pidMap and toPid in globalValues.pidMap:
-                    temp = temp+'\n\t\tfrom name={}, to name={}'.format(globalValues.pidMap[fromPid],globalValues.pidMap[toPid])
+                if toPid in globalValues.pidMap:
+                    toPid = '{}({})'.format(toPid, globalValues.pidMap[toPid])
+                temp = temp+'\n\t其中 binder form pid:{} to pid:{}, 数量 = {}。'.format(fromPid, toPid, value)
 
         globalValues.showMessage.append(temp)
         resonFile.writelines(temp)
@@ -711,7 +769,10 @@ def parseLogDir(destDir:str, resonFile:TextIOWrapper, packageName:str=DEFAULT_PA
             temp = '\n'
             for title, stack  in tracesLog.suspiciousStack.items():
                 pidStack: PidStack = stack
-                temp = '{}\t{}\n\t\t{}\n'.format(temp, title,'\n\t\t'.join(pidStack.javaStacks[:10]))
+                if len(pidStack.javaStacks) < 10:
+                    temp = '{}\t{}\n\t\t{}\n'.format(temp, title,'\n\t\t'.join(pidStack.javaStacks))
+                else:
+                    temp = '{}\t{}\n\t\t{}\n\t\t{}\n\t\t{}\n'.format(temp, title,'\n\t\t'.join(pidStack.javaStacks[:5]),'......','\n\t\t'.join(pidStack.javaStacks[-4:]))
                 globalValues.showMessage.append(temp)
                 resonFile.writelines(temp)
 
@@ -745,7 +806,7 @@ def parseLogDir(destDir:str, resonFile:TextIOWrapper, packageName:str=DEFAULT_PA
     return globalValues
 
 def parseZipLog(fileName, resonFile:TextIOWrapper, packageName:str=DEFAULT_PACKAGE, removeDir = True, callbackMsg = None):
-    log("parLogZip : fileName={},  packageName={}".format(fileName, packageName))
+    logUtils.info("parLogZip : fileName={},  packageName={}".format(fileName.replace('\\','/'), packageName))
     callbackMsg('正在解析{}'.format(basename(fileName)))
     #如果不是pid文件则不解析
     if not zipfile.is_zipfile(fileName):
@@ -773,7 +834,7 @@ def parseZipLog(fileName, resonFile:TextIOWrapper, packageName:str=DEFAULT_PACKA
 def parserZipLogDir(foldPath, packageName =DEFAULT_PACKAGE, removeDir = True, callbackMsg = None):
     #打印需要解析的路径
     msg = '--parserZipLogDir thread={} foldPath={}'.format(current_thread().getName(), foldPath)
-    logUtils.info(msg)
+    log(msg.replace('\\','/'))
     #获取该路径下所有的zip文件
     allZips = [file for file in toolUtils.getAllFileName(foldPath) if zipfile.is_zipfile(file)]
     #创建该路径下的reason文件，用于保存解析结果

@@ -10,13 +10,15 @@ from queue import Queue
 from os.path import (realpath, isdir, isfile, sep, dirname, abspath, exists, basename, getsize)
 from os import startfile
 import re, time
-from Tool import widget,TEST,logUtils
+from Tool import widget
+from Tool import TEST
 
-EXE_PATH = '//MININT-578MFLI/Share/JiraTool/'
+EXE_PATH = '//MININT-578MFLI/Share/WorkTool/'
 VERSION_INI_FILE = EXE_PATH+'version.ini'
+EXE_FILE_NAME = 'WorkTool.zip'
 
-CURRENT_VERSION = '1.0.004'
-CURRENT_UPDATE_CONTENT = '多线程操作修复'
+CURRENT_VERSION = '1.0.000'
+CURRENT_UPDATE_CONTENT = '第一个版本'
 
 def updateExe():
     update = False
@@ -42,12 +44,12 @@ def updateExe():
             content = defaultConf['content']
     if update:
         ret = tk.messagebox.askquestion(title='新版本更新', message='是否更新版本{}?\n\n{}'.format(version,content))
-        if ret == 'yes' or str(ret) == 'Ture':
+        if ret == 'yes' or str(ret) == 'True':
             file_path = askdirectory()
             bar = widget.GressBar()
-            def copyAnrTool():
-                zip_file = sep.join([file_path, 'JiraTool.zip'])
-                copyfile(EXE_PATH+'JiraTool.zip', zip_file)
+            def copyTool():
+                zip_file = sep.join([file_path, 'WorkTool.zip'])
+                copyfile(EXE_PATH+'WorkTool.zip', zip_file)
                 time.sleep(3)
                 if isfile(zip_file):
                     startfile(zip_file)
@@ -55,7 +57,7 @@ def updateExe():
                     tk.messagebox.showinfo(title='提示', message='下载失败！')
                 bar.quit()
 
-            WorkThread(action=copyAnrTool).start()
+            WorkThread(action=copyTool).start()
             bar.start('更新软件','正在下载......')
 
 class DownloadFrame():
@@ -90,7 +92,7 @@ class DownloadFrame():
         ###tip
         left = self.padding+20
         width = self.width
-        tipLable = tk.Label(frame, text='多个Jira、机型、版本使用空格隔开，至少填两项', anchor=widget.ANCHOR_W, fg =widget.gray, font=(11))
+        tipLable = tk.Label(frame, text='多个Jira、机型、版本使用空格隔开，Jira与机型必填', anchor=widget.ANCHOR_W, fg =widget.gray, font=(11))
         tipLable.place(x=left, y=top, anchor='nw', width=width, height=height)
         self.frame = frame
 
@@ -210,9 +212,9 @@ class DownloadFrame():
         self.savePath = savePath
 
         jira:str = self.jiraEntry.get()
-        # if not jira or len(jira) == 0:
-        #     messagebox.showwarning(title='Jira号为空', message='请请输入有效Jira号，多个Jira号使用空格隔开！')
-        #     return False
+        if not jira or len(jira) == 0:
+            messagebox.showwarning(title='Jira号为空', message='请请输入有效Jira号，多个Jira号使用空格隔开！')
+            return False
         jiras = jira.split(' ')
         pattern = 'LOG-[\d]+'
         self.jiras = []
@@ -222,47 +224,34 @@ class DownloadFrame():
                 if not re.match(pattern, jira):
                     messagebox.showwarning(title='有无效Jira号输入', message='请请输入有效Jira号，多个Jira号使用空格隔开！')
                     return False
-                if not jira in self.jiras and len(jira)>0:
+                if not jira in self.jiras:
                     self.jiras.append(jira)
-        ERR:int = 0
-        if not self.jiras or len(self.jiras)==0:
-            ERR = ERR+1
-            # messagebox.showwarning(title='有无效Jira号输入', message='请请输入有效Jira号，多个Jira号使用空格隔开！')
-            # return False
+        if len(self.jiras)==0:
+            messagebox.showwarning(title='有无效Jira号输入', message='请请输入有效Jira号，多个Jira号使用空格隔开！')
+            return False
 
         model:str = self.modelEntry.get()
-        # if not model or len(model) == 0:
-        #     messagebox.showwarning(title='机型为空', message='请请输入有效机型，多个机型使用空格隔开！')
-        #     return False
+        if not model or len(model) == 0:
+            messagebox.showwarning(title='机型为空', message='请请输入有效机型，多个机型使用空格隔开！')
+            return False
         models = model.split(' ')
         self.models = []
         for item in models:
             model = item.strip()
-            if not model in self.models and len(model)>0:
+            if not model in self.models:
                 self.models.append(model)
-        if not self.models or len(self.models)==0:
-            ERR = ERR+1
-            # messagebox.showwarning(title='有无效机型输入', message='请请输入有效机型，多个机型使用空格隔开！')
-            # return False
+        if len(self.models)==0:
+            messagebox.showwarning(title='有无效机型输入', message='请请输入有效机型，多个机型使用空格隔开！')
+            return False
 
         version:str = self.versionEntry.get()
-        # if not version or len(version) == 0:
-        #     messagebox.showwarning(title='版本为空', message='请输入有效版本，多个版本使用空格隔开！')
-        #     return False
-        versions = version.split(' ')
         self.versions = []
-        for item in versions:
-            version = item.strip()
-            if not version in self.versions and len(version)>0:
-                self.versions.append(version)
-        if not self.versions or len(self.versions)==0:
-            ERR = ERR+1
-            # messagebox.showwarning(title='有无效机型输入', message='请请输入有效机型，多个机型使用空格隔开！')
-            # return False
-
-        if ERR > 1 :
-            messagebox.showwarning(title='输入参数不足', message='(Jira号，机型，版本号)至少输入两项，多个使用空格隔开！')
-            return False
+        if version or len(version) >0:
+            self.versions = version.split(' ')
+        for item in models:
+            model = item.strip()
+            if not model in self.models:
+                self.models.append(model)
 
         return True
 
@@ -283,15 +272,11 @@ class DownloadFrame():
                 startfile(self.savePath)
             addWorkDoneCallback(downCallback)
             self.gressBar = widget.GressBar()
-            if len(self.jiras) == 0:
-                self.jiras=['']
-            logUtils.info('jira={}, model={}, version={}'.format(self.jiras,self.models,self.versions))
-            def getAction( outPath, callback, jiraId, models, versions, anrParse):
-                def downloadAction():
-                    downloadLog.download(outPath = outPath, callbackMsg=callback, jiraId = jiraId, productModels = models,
-                                         productVersions= versions,  parse=anrParse, async=(len(self.jiras)<=1))
-                return downloadAction
             for jiraId in self.jiras:
+                def getAction( outPath, callback, jiraId, models, versions, anrParse):
+                    def downloadAction():
+                        downloadLog.download(outPath = outPath, callbackMsg=callback, jiraId = jiraId, productModels = models, productVersions= versions,  parse=anrParse)
+                    return downloadAction
                 postAction(getAction( self.savePath, callbackMsg, jiraId, self.models, self.versions, self.anrParse))
             self.gressBar.start()
 
